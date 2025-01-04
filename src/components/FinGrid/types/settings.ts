@@ -19,7 +19,6 @@ export interface GeneralSettings {
   // Layout
   showTopToolbar: boolean;
   showBottomToolbar: boolean;
-  showRowNumbers: boolean;
   enablePagination: boolean;
   rowsPerPage: number;
 
@@ -53,7 +52,6 @@ export const DEFAULT_SETTINGS: GeneralSettings = {
 
   showTopToolbar: true,
   showBottomToolbar: true,
-  showRowNumbers: true,
   enablePagination: true,
   rowsPerPage: 25,
 

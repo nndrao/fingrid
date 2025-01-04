@@ -54,16 +54,6 @@ export const LayoutSettings: React.FC<LayoutSettingsProps> = ({
           </div>
 
           <div className="flex items-center justify-between">
-            <Label>Show Row Numbers</Label>
-            <Switch
-              checked={settings.showRowNumbers}
-              onCheckedChange={(checked) => 
-                onSettingsChange({ ...settings, showRowNumbers: checked })
-              }
-            />
-          </div>
-
-          <div className="flex items-center justify-between">
             <Label>Enable Pagination</Label>
             <Switch
               checked={settings.enablePagination}
