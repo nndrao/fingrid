@@ -42,12 +42,16 @@ const FinGridInner: React.FC<FinGridProps & {
 
   const {
     columnDefs,
+    availableColumns,
     groups,
     activeGroups,
     expandedGroups,
-    availableColumns,
-    allColumns
-  } = useColumnGrouping(initialColumnDefs, gridApi);
+    addGroup,
+    updateGroup,
+    deleteGroup,
+    toggleGroupActive,
+    toggleGroupExpanded,
+  } = useColumnGrouping(initialColumnDefs || [], gridApi);
 
   // Apply theme when settings change
   useEffect(() => {
@@ -65,7 +69,7 @@ const FinGridInner: React.FC<FinGridProps & {
         settings={settings}
         onSettingsChange={updateSettings}
         onSettingsClick={() => setIsSettingsOpen(true)}
-        columns={allColumns}
+        columns={availableColumns}
         isSettingsOpen={isSettingsOpen}
         onSettingsOpenChange={setIsSettingsOpen}
       />
@@ -108,7 +112,7 @@ const FinGridInner: React.FC<FinGridProps & {
         onOpenChange={setIsSettingsOpen}
         settings={settings}
         onSettingsChange={updateSettings}
-        columns={allColumns}
+        columns={availableColumns}
       />
     </div>
   );

@@ -28,14 +28,56 @@ const ColumnGroupsContext = createContext<ColumnGroupsContextType | undefined>(u
 export const ColumnGroupsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, setState] = useState<ColumnGroupState>(DEFAULT_COLUMN_GROUP_STATE);
 
+  // Validation
+  const isGroupNameValid = useCallback((name: string, excludeGroupId?: string) => {
+    if (!name || typeof name !== 'string') return false;
+    const trimmedName = name.trim();
+    return (
+      trimmedName.length > 0 &&
+      !state.groups.some(group => 
+        group.id !== excludeGroupId && 
+        group.name.toLowerCase() === trimmedName.toLowerCase()
+      )
+    );
+  }, [state.groups]);
+
   // Group Management
   const addGroup = useCallback((group: Omit<ColumnGroup, 'id'>) => {
+    if (!group.name || typeof group.name !== 'string') {
+      console.error('Invalid group name');
+      return;
+    }
+
+    const trimmedName = group.name.trim();
+    if (!isGroupNameValid(trimmedName)) {
+      console.error('Group name is invalid or already exists');
+      return;
+    }
+
     setState(prev => {
+      // Create new group with unique ID
       const newGroup = {
         ...group,
+        name: trimmedName,
         id: generateId(),
-        expanded: true
+        expanded: true,
+        columns: [...new Set(group.columns)] // Ensure unique columns
       };
+
+      // Remove any columns that are already in other groups
+      const usedColumns = new Set<string>();
+      prev.groups.forEach(existingGroup => {
+        existingGroup.columns.forEach(col => usedColumns.add(col));
+      });
+
+      newGroup.columns = newGroup.columns.filter(col => !usedColumns.has(col));
+
+      // Only add the group if it has columns
+      if (newGroup.columns.length === 0) {
+        console.error('No available columns for the group');
+        return prev;
+      }
+
       return {
         ...prev,
         groups: [...prev.groups, newGroup],
@@ -44,19 +86,54 @@ export const ColumnGroupsProvider: React.FC<{ children: React.ReactNode }> = ({ 
         mode: 'create' as const
       };
     });
-  }, []);
+  }, [isGroupNameValid]);
 
   const updateGroup = useCallback((id: string, updates: Partial<ColumnGroup>) => {
-    setState(prev => ({
-      ...prev,
-      groups: prev.groups.map(group => 
-        group.id === id ? { ...group, ...updates } : group
-      ),
-      editingGroupId: null,
-      selectedColumns: [],
-      mode: 'create' as const
-    }));
-  }, []);
+    if (updates.name && !isGroupNameValid(updates.name, id)) {
+      console.error('Group name is invalid or already exists');
+      return;
+    }
+
+    setState(prev => {
+      // Get the existing group
+      const existingGroup = prev.groups.find(g => g.id === id);
+      if (!existingGroup) {
+        console.error('Group not found');
+        return prev;
+      }
+
+      // Create the updated group
+      const updatedGroup = {
+        ...existingGroup,
+        ...updates,
+        name: updates.name ? updates.name.trim() : existingGroup.name,
+        columns: updates.columns ? [...new Set(updates.columns)] : existingGroup.columns // Ensure unique columns
+      };
+
+      // Remove any columns that are already in other groups
+      if (updates.columns) {
+        const usedColumns = new Set<string>();
+        prev.groups.forEach(group => {
+          if (group.id !== id) { // Skip the current group
+            group.columns.forEach(col => usedColumns.add(col));
+          }
+        });
+
+        updatedGroup.columns = updatedGroup.columns.filter(col => !usedColumns.has(col));
+      }
+
+      // Update only the target group, keeping all other groups unchanged
+      return {
+        ...prev,
+        groups: prev.groups.map(group => 
+          group.id === id ? updatedGroup : group
+        ),
+        editingGroupId: null,
+        selectedColumns: [],
+        mode: 'create' as const
+      };
+    });
+  }, [isGroupNameValid]);
 
   const deleteGroup = useCallback((id: string) => {
     setState(prev => ({
@@ -74,7 +151,7 @@ export const ColumnGroupsProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const selectColumns = useCallback((columns: string[]) => {
     setState(prev => ({
       ...prev,
-      selectedColumns: Array.from(new Set([...prev.selectedColumns, ...columns]))
+      selectedColumns: [...new Set([...prev.selectedColumns, ...columns])]
     }));
   }, []);
 
@@ -94,65 +171,41 @@ export const ColumnGroupsProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   // Mode Management
   const startEditingGroup = useCallback((id: string) => {
-    setState(prev => {
-      const group = prev.groups.find(g => g.id === id);
-      return {
-        ...prev,
-        editingGroupId: id,
-        selectedColumns: group?.columns || [],
-        mode: 'edit' as const
-      };
-    });
+    setState(prev => ({
+      ...prev,
+      editingGroupId: id,
+      mode: 'edit'
+    }));
   }, []);
 
   const cancelEditingGroup = useCallback(() => {
     setState(prev => ({
       ...prev,
       editingGroupId: null,
-      selectedColumns: [],
-      mode: 'create' as const
+      mode: 'create'
     }));
   }, []);
 
   // Group State Management
   const toggleGroupActive = useCallback((id: string) => {
-    setState(prev => {
-      const isActive = prev.activeGroups.includes(id);
-      return {
-        ...prev,
-        activeGroups: isActive
-          ? prev.activeGroups.filter(groupId => groupId !== id)
-          : [...prev.activeGroups, id]
-      };
-    });
+    setState(prev => ({
+      ...prev,
+      activeGroups: prev.activeGroups.includes(id)
+        ? prev.activeGroups.filter(groupId => groupId !== id)
+        : [...prev.activeGroups, id]
+    }));
   }, []);
 
   const toggleGroupExpanded = useCallback((id: string) => {
-    setState(prev => {
-      const isExpanded = prev.expandedGroups.includes(id);
-      return {
-        ...prev,
-        expandedGroups: isExpanded
-          ? prev.expandedGroups.filter(groupId => groupId !== id)
-          : [...prev.expandedGroups, id],
-        groups: prev.groups.map(group =>
-          group.id === id ? { ...group, expanded: !isExpanded } : group
-        )
-      };
-    });
+    setState(prev => ({
+      ...prev,
+      expandedGroups: prev.expandedGroups.includes(id)
+        ? prev.expandedGroups.filter(groupId => groupId !== id)
+        : [...prev.expandedGroups, id]
+    }));
   }, []);
 
-  // Validation
-  const isGroupNameValid = useCallback((name: string, excludeGroupId?: string) => {
-    return (
-      name.trim().length > 0 &&
-      !state.groups.some(group => 
-        group.id !== excludeGroupId && 
-        group.name.toLowerCase() === name.trim().toLowerCase()
-      )
-    );
-  }, [state.groups]);
-
+  // Get available columns
   const getAvailableColumns = useCallback((allColumns: string[], excludeGroupId?: string) => {
     const usedColumns = new Set<string>();
     state.groups.forEach(group => {
@@ -163,24 +216,24 @@ export const ColumnGroupsProvider: React.FC<{ children: React.ReactNode }> = ({ 
     return allColumns.filter(col => !usedColumns.has(col));
   }, [state.groups]);
 
+  const value = {
+    state,
+    addGroup,
+    updateGroup,
+    deleteGroup,
+    selectColumns,
+    deselectColumns,
+    clearSelectedColumns,
+    startEditingGroup,
+    cancelEditingGroup,
+    toggleGroupActive,
+    toggleGroupExpanded,
+    isGroupNameValid,
+    getAvailableColumns,
+  };
+
   return (
-    <ColumnGroupsContext.Provider
-      value={{
-        state,
-        addGroup,
-        updateGroup,
-        deleteGroup,
-        selectColumns,
-        deselectColumns,
-        clearSelectedColumns,
-        startEditingGroup,
-        cancelEditingGroup,
-        toggleGroupActive,
-        toggleGroupExpanded,
-        isGroupNameValid,
-        getAvailableColumns
-      }}
-    >
+    <ColumnGroupsContext.Provider value={value}>
       {children}
     </ColumnGroupsContext.Provider>
   );

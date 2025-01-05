@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ColumnGroup } from '../../../types';
+import { useColumnGroups } from '../../../context/ColumnGroupsContext';
 
 interface GroupFormProps {
   mode: 'create' | 'edit';
@@ -28,6 +29,8 @@ export const GroupForm: React.FC<GroupFormProps> = ({
   const [touched, setTouched] = useState(false);
   const [errors, setErrors] = useState<{ name?: string; columns?: string }>({});
 
+  const { state: { groups }, isGroupNameValid } = useColumnGroups();
+
   useEffect(() => {
     if (mode === 'edit' && selectedGroup) {
       setGroupName(selectedGroup.name);
@@ -46,6 +49,8 @@ export const GroupForm: React.FC<GroupFormProps> = ({
     
     if (!groupName.trim()) {
       newErrors.name = 'Group name is required';
+    } else if (!isGroupNameValid(groupName, selectedGroup?.id)) {
+      newErrors.name = 'A group with this name already exists';
     }
     
     if (selectedColumns.length === 0) {
@@ -61,11 +66,27 @@ export const GroupForm: React.FC<GroupFormProps> = ({
     setTouched(true);
     
     if (validate()) {
+      debugger
       onSubmit({
-        id: selectedGroup?.id, // Pass the existing ID for updates
+        id: selectedGroup?.id,
         name: groupName.trim(),
         columns: selectedColumns,
       });
+    }
+  };
+
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newName = e.target.value;
+    setGroupName(newName);
+    
+    if (touched) {
+      if (!newName.trim()) {
+        setErrors(prev => ({ ...prev, name: 'Group name is required' }));
+      } else if (!isGroupNameValid(newName, selectedGroup?.id)) {
+        setErrors(prev => ({ ...prev, name: 'A group with this name already exists' }));
+      } else {
+        setErrors(prev => ({ ...prev, name: undefined }));
+      }
     }
   };
 
@@ -88,7 +109,7 @@ export const GroupForm: React.FC<GroupFormProps> = ({
           <Label>Group Name</Label>
           <Input
             value={groupName}
-            onChange={(e) => setGroupName(e.target.value)}
+            onChange={handleNameChange}
             onBlur={() => setTouched(true)}
             placeholder="Enter group name"
             aria-invalid={!!errors.name}
@@ -150,7 +171,7 @@ export const GroupForm: React.FC<GroupFormProps> = ({
         </Button>
         <Button
           type="submit"
-          disabled={!groupName || selectedColumns.length === 0}
+          disabled={!groupName || selectedColumns.length === 0 || Object.keys(errors).length > 0}
         >
           {mode === 'edit' ? 'Update Group' : 'Create Group'}
         </Button>

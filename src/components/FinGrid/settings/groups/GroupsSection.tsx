@@ -13,11 +13,11 @@ export const GroupsSection: React.FC<GroupsSectionProps> = ({ columns }) => {
   const [mode, setMode] = useState<'create' | 'edit'>('create');
   
   const {
-    state: { groups, activeGroups },
+    state: { groups },
     addGroup,
     updateGroup,
     deleteGroup,
-    toggleGroupActive
+    isGroupNameValid
   } = useColumnGroups();
 
   const getAvailableColumns = useCallback(() => {
@@ -27,15 +27,43 @@ export const GroupsSection: React.FC<GroupsSectionProps> = ({ columns }) => {
     return columns.filter(col => !usedColumns.includes(col));
   }, [columns, groups, selectedGroup]);
 
-  const handleSubmit = (group: Omit<ColumnGroup, 'id'> & { id?: string }) => {
-    if (mode === 'edit' && group.id) {
-      updateGroup(group.id, group);
-    } else {
-      addGroup(group);
+  const handleSubmit = (group: Omit<ColumnGroup, 'id'> & { id?: string | undefined }) => {
+    if (!group.name || typeof group.name !== 'string') {
+      console.error('Invalid group name');
+      return;
     }
+
+    const trimmedName = group.name.trim();
+    if (!isGroupNameValid(trimmedName, group.id)) {
+      console.error('Group name is invalid or already exists');
+      return;
+    }
+
+    if (mode === 'edit' && group.id) {
+      updateGroup(group.id, {
+        name: trimmedName,
+        columns: group.columns
+      });
+    } else {
+      addGroup({
+        name: trimmedName,
+        columns: group.columns
+      });
+    }
+
     setSelectedGroup(null);
     setMode('create');
   };
+
+  const handleGroupSelect = useCallback((group: ColumnGroup) => {
+    setSelectedGroup(group);
+    setMode('edit');
+  }, []);
+
+  const handleCancel = useCallback(() => {
+    setSelectedGroup(null);
+    setMode('create');
+  }, []);
 
   return (
     <div className="flex flex-col h-full">
@@ -48,10 +76,7 @@ export const GroupsSection: React.FC<GroupsSectionProps> = ({ columns }) => {
         <GroupList 
           groups={groups}
           selectedGroupId={selectedGroup?.id}
-          onGroupSelect={(group) => {
-            setSelectedGroup(group);
-            setMode('edit');
-          }}
+          onGroupSelect={handleGroupSelect}
           onGroupDelete={deleteGroup}
         />
         <GroupForm
@@ -60,10 +85,7 @@ export const GroupsSection: React.FC<GroupsSectionProps> = ({ columns }) => {
           selectedGroupColumns={selectedGroup?.columns || []}
           selectedGroup={selectedGroup}
           onSubmit={handleSubmit}
-          onCancel={() => {
-            setSelectedGroup(null);
-            setMode('create');
-          }}
+          onCancel={handleCancel}
         />
       </div>
     </div>
